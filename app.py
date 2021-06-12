@@ -153,4 +153,60 @@ def edit_animal():
     return Response("Failed to update animal", mimetype="text/plain", status=400)
 
 
+@app.delete('/animals')
+def delete_animal():
+  try:
+    animal_id = int(request.json['animalId'])
+
+  except ValueError:
+    traceback.print_exc()
+    # 403 seems to be the best error status for this based on some research, I read that this means "We understand the request, but you're not allowed"
+    return Response("Error: ID Input was not a whole number", mimetype="text/plain", status=403)
+  except:
+    traceback.print_exc()
+    return Response("Error: Unknown error with input!", mimetype="text/plain", status=400)
+
+  conn = db.openConnection()
+  cursor = db.openCursor(conn)
+
+  deleted_animal = None
+  row_count = 0
+  result = None
+  try:
+    # ? added select before the delete so I could return the data, could I put this after the delete, before the commit, to get the data before it's gone?
+    # ? I think this works because of my conditional, as it seems rowcount also still works on delete, will talk in the morning about this!
+    cursor.execute("SELECT name, id FROM animal WHERE id = ?", [animal_id, ])
+    # Used fetchall so I could use my loop to display data nicer.
+    deleted_animal = cursor.fetchall()
+    result = db.loopItems(cursor, deleted_animal)
+
+    cursor.execute(
+        "DELETE FROM animal WHERE id = ?", [animal_id, ])
+    conn.commit()
+    row_count = cursor.rowcount
+
+  except mariadb.InternalError:
+    # Basic 500 seems like an okay error here,
+    traceback.print_exc()
+    return Response("Internal Server Error: Failed to delete animal", mimetype="text/plain", status=500)
+  except mariadb.IntegrityError:
+    # I think 409 fits well here, since it should be caused by a conflict like a duplicate, or foreign key issue, seems like a client issue, not a server issue?
+    # ? unsure how the Integrity error works on delete
+    traceback.print_exc()
+    return Response("Error: Possible duplicate data or foreign key conflict!", mimetype="text/plain", status=409)
+
+  except:
+    traceback.print_exc()
+    print("Error with DELETE!")
+
+  db.closeAll(conn, cursor)
+
+  # 1 row should still work here! Added that the result also needed data, unsure if I still need new_animal condition, but more explicit cant be that bad, rightttt?
+  if(row_count == 1 and deleted_animal != None and result != None):
+    deleted_animal_json = json.dumps(result, default=str)
+    return Response(deleted_animal_json, mimetype="application/json", status=201)
+  else:
+    return Response("Failed to delete animal", mimetype="text/plain", status=400)
+
+
 app.run(debug=True)
