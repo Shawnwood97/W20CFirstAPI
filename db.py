@@ -62,3 +62,11 @@ def closeAll(conn, cursor):
   closeCursor(cursor)
   closeConnection(conn)
   print('Cursor and connection closed!')
+
+
+def loopItems(cursor, rows):
+  headers = [i[0] for i in cursor.description]
+  result = []
+  for row in rows:
+    result.append(dict(zip(headers, row)))
+  return result
